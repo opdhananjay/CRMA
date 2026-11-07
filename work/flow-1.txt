@@ -1,0 +1,8 @@
+When SuperAdmin creates an organization, the backend should:
+1. Insert the organization.
+2. Create the first owner account and organization-user association.
+3. Find the active Free Plan.
+4. Insert its PlanId and new OrganizationId into OrganizationSubscriptions.
+5. Create the owner invitation.
+
+

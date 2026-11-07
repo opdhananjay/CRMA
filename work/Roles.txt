@@ -1,40 +1,5 @@
-1. Super Admin
-Platform level
-Manages the entire CRM platform.
+1. SuperAdmin 
+2. OrganizationOwner
+3. Manager
+4. Agent
 
-Responsibilities
-- Manage organizations and subscriptions.
-- Activate or deactivate organizations.
-- Manage platform-level configuration.
-- Monitor platform health.
-- Manage platform administrators.
-Example: Anjaya Systems platform administrator.
-
-
-
-2. Manager / Organization Admin
-Business level
-Manages their own organization's CRM.
-
-Responsibilities
-- Manage organization users.
-- Create, assign and reassign leads.
-- View all organization leads.
-- Manage lead types, sources and statuses.
-- View team performance and reports.
-- Manage follow-ups and activities.
-Example: Owner or sales manager of a real estate agency.
-
-
-
-3. Agent / Employee
-Business level
-Handles assigned leads and follow-ups.
-
-Responsibilities
-- View assigned leads.
-- Add calls, notes and activities.
-- Schedule follow-ups.
-- Update lead status.
-- Manage their own daily tasks.
-- View personal performance.
