@@ -1,0 +1,30 @@
+SQL topic	Where to practise in CRM
+Primary & Foreign Keys	Organizations, Users, Leads
+Joins	Lead with assigned employee
+GROUP BY & HAVING	Dashboard statistics
+Subqueries	Leads without follow-ups
+CTE	Pipeline and reporting
+Window Functions	Employee performance ranking
+Transactions	Organization + Owner + Subscription creation
+Indexing	Lead search and pagination
+Stored Procedures	All major CRUD operations
+Views	Reporting and reusable data queries
+Dynamic SQL	Flexible filters, when justified
+Query optimization	Large lead datasets
+Constraints	Email, status and relationship integrity
+
+Stage	Module	What you will learn
+1	Database design	Normalization, relationships, constraints
+2	Authentication	Password hashing, login, cookies/JWT
+3	Organization management	Transactions, multi-tenancy
+4	Team members	Roles, permissions, invitations
+5	Leads	CRUD, validation, filtering, pagination
+6	Follow-ups	Date handling, relationships
+7	Meetings	Business rules, status management
+8	Pipeline	State transitions, history tracking
+9	Activities	Audit history, event logging
+10	Dashboard	Aggregations, joins, optimization
+11	Reports	Complex SQL, exports
+12	Production readiness	Logging, exception handling, security
+
+

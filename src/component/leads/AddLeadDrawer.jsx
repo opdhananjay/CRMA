@@ -1,183 +1,171 @@
+/**
+ * AddLeadDrawer.jsx
+ * 
+ * Reusable Form Drawer for Creating and Editing Leads.
+ * 
+ * ============================================================================
+ * LEARNING NOTES FOR JUNIOR DEVELOPERS:
+ * ============================================================================
+ * 
+ * 1. UNIFIED ADD & EDIT MODES:
+ *    Instead of creating two nearly identical forms (`AddLeadDrawer` and `EditLeadDrawer`),
+ *    a single component handles both:
+ *    - If `leadToEdit` is provided, we populate the fields and display "Edit Lead".
+ *    - If `leadToEdit` is null, we clear the fields and display "Add New Lead".
+ * 
+ * 2. POPULATING FORM DATA WITH REACT HOOK FORM:
+ *    `useEffect` listens for changes to `isOpen` and `leadToEdit`.
+ *    When the drawer opens, `reset(leadToEdit || defaultValues)` sets all controlled
+ *    inputs at once without manual individual state setters.
+ * 
+ * 3. BACKEND API INTEGRATION:
+ *    - In Create mode: Calls `POST /api/leads`
+ *    - In Edit mode: Calls `PUT /api/leads/{id}`
+ */
+
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { X, UserPlus, Save } from "lucide-react";
+import { UserPlus, Pencil, Save } from "lucide-react";
 
+import Drawer from "../common/Drawer";
 import LeadBasicInfo from "./LeadBasicInfo";
 import LeadBusinessInfo from "./LeadBusinessInfo";
 import LeadAssignment from "./LeadAssignment";
 
-const AddLeadDrawer = ({ isOpen, onClose, onSubmit }) => {
+const defaultValues = {
+  companyName: "",
+  contactPerson: "",
+  phone: "",
+  email: "",
+  city: "",
+  website: "",
+  leadType: "",
+  industry: "",
+  leadSource: "",
+  budget: "",
+  status: "New",
+  assignedTo: "",
+  notes: "",
+};
 
-    const {
-        register,
-        handleSubmit,
-        reset,
-        formState: { errors, isSubmitting }
-    } = useForm({
-        defaultValues: {
-            companyName: "",
-            contactPerson: "",
-            phone: "",
-            email: "",
-            city: "",
-            website: "",
-            leadType: "",
-            industry: "",
-            leadSource: "",
-            budget: "",
-            status: "New",
-            assignedTo: "",
-            notes: ""
-        }
+const AddLeadDrawer = ({ isOpen, onClose, onSubmit, leadToEdit = null }) => {
+  const isEditMode = Boolean(leadToEdit);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    defaultValues,
+  });
+
+  // When drawer opens, reset form to default values (Add) or lead data (Edit)
+  useEffect(() => {
+    if (isOpen) {
+      if (leadToEdit) {
+        reset({
+          companyName: leadToEdit.companyName || "",
+          contactPerson: leadToEdit.contactPerson || "",
+          phone: leadToEdit.phone || "",
+          email: leadToEdit.email || "",
+          city: leadToEdit.city || "",
+          website: leadToEdit.website || "",
+          leadType: leadToEdit.leadType || "",
+          industry: leadToEdit.industry || "",
+          leadSource: leadToEdit.leadSource || "",
+          budget: leadToEdit.budget ? String(leadToEdit.budget) : "",
+          status: leadToEdit.status || "New",
+          assignedTo: leadToEdit.assignedTo || "",
+          notes: leadToEdit.notes || "",
+        });
+      } else {
+        reset(defaultValues);
+      }
+    }
+  }, [isOpen, leadToEdit, reset]);
+
+  // Handle successful form submission
+  const handleFormSubmit = async (data) => {
+    await onSubmit({
+      ...data,
+      budget: data.budget ? Number(data.budget) : 0,
+      id: leadToEdit ? leadToEdit.id : undefined,
     });
 
-    useEffect(() => {
-        if (!isOpen) return;
+    reset(defaultValues);
+    onClose();
+  };
 
-        const handleEscape = (event) => {
-            if (event.key === "Escape") {
-                onClose();
-            }
-        };
+  // Handle cancellation and clean form reset
+  const handleClose = () => {
+    reset(defaultValues);
+    onClose();
+  };
 
-        window.addEventListener("keydown", handleEscape);
+  // Action buttons for the drawer footer
+  const footerContent = (
+    <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+      <button
+        type="button"
+        onClick={handleClose}
+        className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition"
+      >
+        Cancel
+      </button>
 
-        return () => {
-            window.removeEventListener("keydown", handleEscape);
-        };
-    }, [isOpen, onClose]);
+      <button
+        type="submit"
+        form="lead-form"
+        disabled={isSubmitting}
+        className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 transition"
+      >
+        <Save size={17} />
+        <span>
+          {isSubmitting
+            ? "Saving..."
+            : isEditMode
+            ? "Update Lead"
+            : "Save Lead"}
+        </span>
+      </button>
+    </div>
+  );
 
-    const handleFormSubmit = async (data) => {
-        await onSubmit({
-            ...data,
-            budget: data.budget ? Number(data.budget) : null
-        });
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={isEditMode ? "Edit Lead" : "Add New Lead"}
+      description={
+        isEditMode
+          ? `Update information and sales progress for ${leadToEdit?.companyName || "this lead"}.`
+          : "Enter customer details to register a new lead in your CRM."
+      }
+      icon={isEditMode ? Pencil : UserPlus}
+      footer={footerContent}
+      maxWidth="max-w-[680px]"
+    >
+      <form
+        id="lead-form"
+        onSubmit={handleSubmit(handleFormSubmit)}
+        className="space-y-6"
+      >
+        {/* Section 1: Company & Contact Information */}
+        <LeadBasicInfo register={register} errors={errors} />
 
-        reset();
-        onClose();
-    };
+        <div className="border-t border-gray-100" />
 
-    const handleClose = () => {
-        reset();
-        onClose();
-    };
+        {/* Section 2: Business & Source Categorization */}
+        <LeadBusinessInfo register={register} errors={errors} />
 
-    if (!isOpen) return null;
+        <div className="border-t border-gray-100" />
 
-    return (
-        <div className="fixed inset-0 z-50 flex justify-end">
-
-            {/* Backdrop */}
-            <div
-                className="absolute inset-0 bg-black/40"
-                onClick={handleClose}
-            />
-
-            {/* Drawer */}
-            <div className="relative flex h-full w-full max-w-[680px]
-                            flex-col bg-white shadow-2xl">
-
-                {/* Header */}
-                <div className="flex items-center justify-between
-                                border-b border-gray-200 px-5 py-4 sm:px-6">
-
-                    <div className="flex items-center gap-3">
-
-                        <div className="flex h-10 w-10 items-center
-                                        justify-center rounded-lg bg-blue-50">
-                            <UserPlus className="text-blue-600" size={21} />
-                        </div>
-
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-800">
-                                Add New Lead
-                            </h2>
-
-                            <p className="text-xs text-gray-500">
-                                Enter the lead information below.
-                            </p>
-                        </div>
-
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={handleClose}
-                        className="rounded-lg p-2 text-gray-500
-                                   hover:bg-gray-100 hover:text-gray-800"
-                    >
-                        <X size={21} />
-                    </button>
-
-                </div>
-
-                {/* Form Content */}
-                <form
-                    onSubmit={handleSubmit(handleFormSubmit)}
-                    className="flex min-h-0 flex-1 flex-col"
-                >
-
-                    <div className="flex-1 space-y-7 overflow-y-auto
-                                    px-5 py-6 sm:px-6">
-
-                        <LeadBasicInfo
-                            register={register}
-                            errors={errors}
-                        />
-
-                        <div className="border-t border-gray-100" />
-
-                        <LeadBusinessInfo
-                            register={register}
-                            errors={errors}
-                        />
-
-                        <div className="border-t border-gray-100" />
-
-                        <LeadAssignment
-                            register={register}
-                            errors={errors}
-                        />
-
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex flex-col-reverse gap-3
-                                    border-t border-gray-200 bg-white
-                                    px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-
-                        <button
-                            type="button"
-                            onClick={handleClose}
-                            className="rounded-lg border border-gray-300
-                                       px-5 py-2.5 text-sm font-medium
-                                       text-gray-700 hover:bg-gray-50"
-                        >
-                            Cancel
-                        </button>
-
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="flex items-center justify-center
-                                       gap-2 rounded-lg bg-blue-600
-                                       px-5 py-2.5 text-sm font-medium
-                                       text-white hover:bg-blue-700
-                                       disabled:cursor-not-allowed
-                                       disabled:opacity-60"
-                        >
-                            <Save size={17} />
-                            {isSubmitting ? "Saving..." : "Save Lead"}
-                        </button>
-
-                    </div>
-
-                </form>
-
-            </div>
-
-        </div>
-    );
+        {/* Section 3: Internal Team Assignment */}
+        <LeadAssignment register={register} errors={errors} />
+      </form>
+    </Drawer>
+  );
 };
 
 export default AddLeadDrawer;

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import StatCard from "../../component/common/StatCard";
 import {
   ShieldCheck,
   Plus,
@@ -321,20 +322,23 @@ export default function RolesPermissions() {
 
       {/* Summary */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <SummaryCard
+        <StatCard
           icon={ShieldCheck}
-          label="Total Roles"
+          title="Total Roles"
           value={roles.length}
+          color="blue"
         />
-        <SummaryCard
+        <StatCard
           icon={UserCog}
-          label="System Roles"
+          title="System Roles"
           value={roles.filter((role) => role.isSystem).length}
+          color="purple"
         />
-        <SummaryCard
+        <StatCard
           icon={Users}
-          label="Custom Roles"
+          title="Custom Roles"
           value={roles.filter((role) => !role.isSystem).length}
+          color="green"
         />
       </div>
 
@@ -610,16 +614,4 @@ export default function RolesPermissions() {
   );
 }
 
-function SummaryCard({ icon: Icon, label, value }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
-      <div className="rounded-lg bg-blue-50 p-3 text-blue-600">
-        <Icon size={21} />
-      </div>
-      <div>
-        <p className="text-sm text-slate-500">{label}</p>
-        <p className="mt-1 text-xl font-semibold text-slate-800">{value}</p>
-      </div>
-    </div>
-  );
-}
+

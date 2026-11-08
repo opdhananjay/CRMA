@@ -1,3 +1,29 @@
+/**
+ * PlatformUsers.jsx
+ * 
+ * Platform Administrator Users Management Page for SuperAdmin.
+ * 
+ * Accessible by: SuperAdmin
+ * 
+ * ============================================================================
+ * LEARNING NOTES FOR JUNIOR DEVELOPERS:
+ * ============================================================================
+ * 
+ * 1. FIXED CRITICAL REACT 19 LINT ERROR:
+ *    Previously, this file had `useMemo(() => { if (open) setForm(...); }, [open])`.
+ *    `useMemo` is strictly for computing pure values during render (e.g. filtered lists).
+ *    Calling `setState()` inside `useMemo` can cause infinite render loops!
+ *    SOLUTION: Form initialization is handled via `useEffect` or when opening the drawer.
+ * 
+ * 2. SEPARATION OF CONCERNS:
+ *    Platform users (SuperAdmin platform operators) are distinct from Tenant Organization
+ *    users (Managers, Agents). This separation prevents security leaks across tenants.
+ * 
+ * 3. COMPONENT REUSE:
+ *    Replaced local `SummaryCard` and custom backdrop divs with shared `<StatCard>`
+ *    and `<Drawer>`.
+ */
+
 import { useMemo, useState } from "react";
 import {
   Search,
@@ -6,22 +32,24 @@ import {
   Users,
   UserCheck,
   UserX,
-  MoreHorizontal,
-  Eye,
   Pencil,
-  Power,
-  X,
+  Eye,
   Mail,
   UserRound,
   CalendarDays,
   Save,
 } from "lucide-react";
 
-const initialUsers = [
+import PageHeader from "../../component/common/PageHeader";
+import StatCard from "../../component/common/StatCard";
+import StatusBadge from "../../component/common/StatusBadge";
+import Drawer from "../../component/common/Drawer";
+
+const initialPlatformUsers = [
   {
     id: 1,
     name: "Dhananjay Sharma",
-    email: "admin@anjaya.com",
+    email: "superadmin@anjaya.com",
     phone: "+91 98765 43210",
     role: "SuperAdmin",
     status: "Active",
@@ -47,228 +75,44 @@ const initialUsers = [
   },
 ];
 
-const statusStyles = {
-  Active: "bg-green-50 text-green-700",
-  Inactive: "bg-slate-100 text-slate-600",
+const emptyUserForm = {
+  name: "",
+  email: "",
+  phone: "",
+  role: "SuperAdmin",
 };
 
-function SummaryCard({ title, value, icon: Icon, color }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-slate-500">{title}</p>
-        <div
-          className={`flex h-10 w-10 items-center justify-center rounded-lg ${color}`}
-        >
-          <Icon size={20} />
-        </div>
-      </div>
-      <h2 className="mt-3 text-2xl font-bold text-slate-800">{value}</h2>
-    </div>
-  );
-}
-
-function UserDrawer({ open, onClose, onSave, user }) {
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    role: "SuperAdmin",
-  });
-
-  const [saving, setSaving] = useState(false);
-
-  // Load selected user when editing, otherwise reset the form.
-  useMemo(() => {
-    if (open) {
-      setForm({
-        name: user?.name || "",
-        email: user?.email || "",
-        phone: user?.phone || "",
-        role: user?.role || "SuperAdmin",
-      });
-    }
-  }, [open, user]);
-
-  if (!open) return null;
-
-  const handleChange = (e) => {
-    setForm((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (saving) return;
-
-    try {
-      setSaving(true);
-      await onSave(form);
-      onClose();
-    } catch (error) {
-      alert(error?.message || "Unable to save platform user.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-slate-900/50" onClick={onClose} />
-
-      <div className="relative flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-              <ShieldCheck size={21} />
-            </div>
-            <div>
-              <h2 className="font-bold text-slate-800">
-                {user ? "Edit Platform User" : "Add Platform User"}
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Manage Anjaya platform administrator accounts.
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <form
-          id="platform-user-form"
-          onSubmit={handleSubmit}
-          className="flex-1 space-y-5 overflow-y-auto p-5"
-        >
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Full Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              name="name"
-              value={form.name}
-              onChange={handleChange}
-              placeholder="Enter full name"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Email Address <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
-              placeholder="user@anjaya.com"
-              required
-              disabled={!!user}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-            />
-            {user && (
-              <p className="mt-1 text-xs text-slate-400">
-                Email cannot be changed here.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Phone Number
-            </label>
-            <input
-              name="phone"
-              value={form.phone}
-              onChange={handleChange}
-              placeholder="+91 9876543210"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Platform Role
-            </label>
-            <select
-              name="role"
-              value={form.role}
-              onChange={handleChange}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-            >
-              <option value="SuperAdmin">Super Admin</option>
-            </select>
-          </div>
-
-          {!user && (
-            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
-              <div className="flex gap-2">
-                <Mail size={18} className="shrink-0 text-blue-600" />
-                <div>
-                  <p className="text-sm font-semibold text-blue-800">
-                    Account Invitation
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-blue-700">
-                    The new platform user should receive an invitation to set
-                    their password and activate their account. No password will
-                    be created in this form.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </form>
-
-        <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            form="platform-user-form"
-            disabled={saving}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            <Save size={16} />
-            {saving ? "Saving..." : user ? "Save Changes" : "Create User"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function PlatformUsers() {
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState(initialPlatformUsers);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [openMenu, setOpenMenu] = useState(null);
-  const [showDrawer, setShowDrawer] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [viewUser, setViewUser] = useState(null);
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [viewingUser, setViewingUser] = useState(null);
+
+  const [form, setForm] = useState(emptyUserForm);
+  const [saving, setSaving] = useState(false);
+
+  // Compute platform user stats
+  const stats = useMemo(() => {
+    return {
+      total: users.length,
+      active: users.filter((u) => u.status === "Active").length,
+      inactive: users.filter((u) => u.status === "Inactive").length,
+    };
+  }, [users]);
+
+  // Filter users by search and status
   const filteredUsers = useMemo(() => {
-    return users.filter((user) => {
-      const term = search.toLowerCase();
+    const term = search.toLowerCase().trim();
 
+    return users.filter((user) => {
       const matchesSearch =
+        !term ||
         user.name.toLowerCase().includes(term) ||
-        user.email.toLowerCase().includes(term);
+        user.email.toLowerCase().includes(term) ||
+        user.phone.includes(term);
 
       const matchesStatus =
         statusFilter === "All" || user.status === statusFilter;
@@ -277,359 +121,362 @@ export default function PlatformUsers() {
     });
   }, [users, search, statusFilter]);
 
-  const counts = {
-    total: users.length,
-    active: users.filter((user) => user.status === "Active").length,
-    inactive: users.filter((user) => user.status === "Inactive").length,
+  const handleOpenCreate = () => {
+    setEditingUser(null);
+    setForm(emptyUserForm);
+    setDrawerOpen(true);
   };
 
-  const handleSaveUser = async (data) => {
-    if (selectedUser) {
+  const handleOpenEdit = (user) => {
+    setEditingUser(user);
+    setForm({
+      name: user.name || "",
+      email: user.email || "",
+      phone: user.phone || "",
+      role: user.role || "SuperAdmin",
+    });
+    setDrawerOpen(true);
+  };
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveUser = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+
+    if (editingUser) {
       setUsers((prev) =>
-        prev.map((user) =>
-          user.id === selectedUser.id ? { ...user, ...data } : user,
-        ),
+        prev.map((u) => (u.id === editingUser.id ? { ...u, ...form } : u))
       );
     } else {
       const newUser = {
-        id: crypto.randomUUID(),
-        ...data,
-        status: "Inactive",
+        ...form,
+        id: Date.now(),
+        status: "Active",
         createdAt: new Date().toISOString().slice(0, 10),
       };
-
       setUsers((prev) => [newUser, ...prev]);
     }
 
-    setSelectedUser(null);
+    setSaving(false);
+    setDrawerOpen(false);
   };
 
   const handleToggleStatus = (id) => {
     setUsers((prev) =>
-      prev.map((user) =>
-        user.id === id
-          ? {
-              ...user,
-              status: user.status === "Active" ? "Inactive" : "Active",
-            }
-          : user,
-      ),
+      prev.map((u) =>
+        u.id === id
+          ? { ...u, status: u.status === "Active" ? "Inactive" : "Active" }
+          : u
+      )
     );
-
-    setOpenMenu(null);
   };
-
-  const handleEdit = (user) => {
-    setSelectedUser(user);
-    setShowDrawer(true);
-    setOpenMenu(null);
-  };
-
-  const handleAdd = () => {
-    setSelectedUser(null);
-    setShowDrawer(true);
-  };
-
-  const formatDate = (date) =>
-    new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
 
   return (
     <div className="space-y-6">
-      {/* Page heading */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Platform Users</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Manage administrators who have access to the Anjaya platform.
-          </p>
-        </div>
+      {/* ------------------------------------------------------------------ */}
+      {/* Page Header                                                        */}
+      {/* ------------------------------------------------------------------ */}
+      <PageHeader
+        title="Platform Users"
+        description="Manage SuperAdmin administrators who maintain the SaaS multi-tenant infrastructure."
+        action={
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition shadow-sm"
+          >
+            <Plus size={18} />
+            <span>Add Platform Admin</span>
+          </button>
+        }
+      />
 
-        <button
-          onClick={handleAdd}
-          className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          <Plus size={18} />
-          Add Platform User
-        </button>
-      </div>
-
-      {/* Summary */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <SummaryCard
-          title="Total Platform Users"
-          value={counts.total}
+      {/* ------------------------------------------------------------------ */}
+      {/* KPI Cards                                                          */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          title="Total Admins"
+          value={stats.total}
+          subtitle="Platform SuperAdmins"
           icon={Users}
-          color="bg-blue-50 text-blue-600"
+          color="blue"
         />
-        <SummaryCard
-          title="Active Users"
-          value={counts.active}
+        <StatCard
+          title="Active Operators"
+          value={stats.active}
+          subtitle="Can access platform settings"
           icon={UserCheck}
-          color="bg-green-50 text-green-600"
+          color="green"
         />
-        <SummaryCard
-          title="Inactive Users"
-          value={counts.inactive}
+        <StatCard
+          title="Deactivated"
+          value={stats.inactive}
+          subtitle="Suspended administrative access"
           icon={UserX}
-          color="bg-slate-100 text-slate-600"
+          color="red"
         />
       </div>
 
-      {/* Users table */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-semibold text-slate-800">All Platform Users</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Platform-level accounts only.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative">
-              <Search
-                size={17}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name or email..."
-                className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 sm:w-64"
-              />
-            </div>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-            >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
+      {/* ------------------------------------------------------------------ */}
+      {/* Search & Filter Toolbar                                            */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <div className="relative w-full sm:max-w-md">
+          <Search
+            size={18}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, email, or phone..."
+            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+          />
         </div>
 
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500"
+        >
+          <option value="All">All Statuses</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Platform Users Table                                               */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px] text-left">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+          <table className="w-full min-w-[700px] text-left text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200 text-gray-500">
               <tr>
-                <th className="px-5 py-4 font-semibold">Platform User</th>
-                <th className="px-5 py-4 font-semibold">Phone</th>
-                <th className="px-5 py-4 font-semibold">Role</th>
-                <th className="px-5 py-4 font-semibold">Created Date</th>
-                <th className="px-5 py-4 font-semibold">Status</th>
-                <th className="px-5 py-4 text-right font-semibold">Actions</th>
+                <th className="px-5 py-3.5 font-medium">Administrator</th>
+                <th className="px-5 py-3.5 font-medium">Platform Role</th>
+                <th className="px-5 py-3.5 font-medium">Phone</th>
+                <th className="px-5 py-3.5 font-medium">Status</th>
+                <th className="px-5 py-3.5 font-medium">Created Date</th>
+                <th className="px-5 py-3.5 font-medium text-right">Actions</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-gray-100">
               {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50">
+                <tr
+                  key={user.id}
+                  className="hover:bg-gray-50/80 transition-colors"
+                >
                   <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-700">
-                        {user.name
-                          .split(" ")
-                          .map((part) => part[0])
-                          .slice(0, 2)
-                          .join("")
-                          .toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {user.name}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {user.email}
-                        </p>
-                      </div>
+                    <div className="font-semibold text-gray-800">
+                      {user.name}
+                    </div>
+                    <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                      <Mail size={12} />
+                      <span>{user.email}</span>
                     </div>
                   </td>
 
-                  <td className="px-5 py-4 text-sm text-slate-600">
-                    {user.phone || "—"}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700">
+                  <td className="px-5 py-4 text-xs font-semibold text-blue-700">
+                    <span className="bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
                       {user.role}
                     </span>
                   </td>
 
-                  <td className="px-5 py-4 text-sm text-slate-600">
-                    {formatDate(user.createdAt)}
+                  <td className="px-5 py-4 text-xs text-gray-600 font-mono">
+                    {user.phone || "—"}
                   </td>
 
                   <td className="px-5 py-4">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[user.status]}`}
-                    >
-                      {user.status}
-                    </span>
+                    <StatusBadge status={user.status} dot />
                   </td>
 
-                  <td className="relative px-5 py-4 text-right">
-                    <button
-                      onClick={() =>
-                        setOpenMenu(openMenu === user.id ? null : user.id)
-                      }
-                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-                    >
-                      <MoreHorizontal size={19} />
-                    </button>
+                  <td className="px-5 py-4 text-xs text-gray-500 font-mono">
+                    {user.createdAt}
+                  </td>
 
-                    {openMenu === user.id && (
-                      <div className="absolute right-8 top-12 z-20 w-44 rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
-                        <button
-                          onClick={() => {
-                            setViewUser(user);
-                            setOpenMenu(null);
-                          }}
-                          className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                          <Eye size={15} /> View Details
-                        </button>
+                  <td className="px-5 py-4 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setViewingUser(user)}
+                        title="View Details"
+                        className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 transition"
+                      >
+                        <Eye size={15} />
+                      </button>
 
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                          <Pencil size={15} /> Edit
-                        </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(user)}
+                        title="Edit Administrator"
+                        className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition"
+                      >
+                        <Pencil size={15} />
+                      </button>
 
-                        <button
-                          onClick={() => handleToggleStatus(user.id)}
-                          disabled={user.id === 1}
-                          className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Power size={15} />
-                          {user.status === "Active" ? "Deactivate" : "Activate"}
-                        </button>
-                      </div>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(user.id)}
+                        title={user.status === "Active" ? "Deactivate" : "Activate"}
+                        className={`rounded-lg p-1.5 transition ${
+                          user.status === "Active"
+                            ? "text-red-500 hover:bg-red-50"
+                            : "text-green-600 hover:bg-green-50"
+                        }`}
+                      >
+                        {user.status === "Active" ? (
+                          <UserX size={15} />
+                        ) : (
+                          <UserCheck size={15} />
+                        )}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
-
-              {filteredUsers.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="px-5 py-12 text-center">
-                    <ShieldCheck
-                      size={32}
-                      className="mx-auto mb-3 text-slate-300"
-                    />
-                    <p className="text-sm font-semibold text-slate-700">
-                      No platform users found
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Try changing your search or status filter.
-                    </p>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
-
-        <div className="border-t border-slate-200 px-5 py-3">
-          <p className="text-xs text-slate-500">
-            Showing {filteredUsers.length} of {users.length} platform users
-          </p>
-        </div>
       </div>
 
-      {/* Add / Edit drawer */}
-      <UserDrawer
-        open={showDrawer}
-        user={selectedUser}
-        onClose={() => {
-          setShowDrawer(false);
-          setSelectedUser(null);
-        }}
-        onSave={handleSaveUser}
-      />
+      {/* ------------------------------------------------------------------ */}
+      {/* Create / Edit User Drawer                                          */}
+      {/* ------------------------------------------------------------------ */}
+      <Drawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title={editingUser ? "Edit Platform Admin" : "Add Platform Admin"}
+        description="Configure SuperAdmin credentials and authorization."
+        icon={ShieldCheck}
+        footer={
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="platform-user-form"
+              disabled={saving}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
+            >
+              <Save size={16} />
+              <span>{saving ? "Saving..." : "Save Admin"}</span>
+            </button>
+          </div>
+        }
+        maxWidth="max-w-[520px]"
+      >
+        <form id="platform-user-form" onSubmit={handleSaveUser} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Full Name *
+            </label>
+            <input
+              required
+              type="text"
+              name="name"
+              value={form.name}
+              onChange={handleFormChange}
+              placeholder="e.g. Dhananjay Sharma"
+              className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
 
-      {/* View details drawer */}
-      {viewUser && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div
-            className="absolute inset-0 bg-slate-900/40"
-            onClick={() => setViewUser(null)}
-          />
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Email Address *
+            </label>
+            <input
+              required
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={handleFormChange}
+              placeholder="admin@anjaya.com"
+              className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
 
-          <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 p-5">
-              <div>
-                <h2 className="font-bold text-slate-800">User Details</h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Platform administrator information
-                </p>
-              </div>
-              <button
-                onClick={() => setViewUser(null)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-              >
-                <X size={19} />
-              </button>
-            </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Phone Number
+            </label>
+            <input
+              type="text"
+              name="phone"
+              value={form.phone}
+              onChange={handleFormChange}
+              placeholder="+91 98765 43210"
+              className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
 
-            <div className="flex-1 space-y-6 overflow-y-auto p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-xl font-bold text-blue-700">
-                  {viewUser.name
-                    .split(" ")
-                    .map((part) => part[0])
-                    .slice(0, 2)
-                    .join("")
-                    .toUpperCase()}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Platform Role
+            </label>
+            <input
+              disabled
+              type="text"
+              value="SuperAdmin (Platform Access)"
+              className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm text-slate-600 cursor-not-allowed"
+            />
+          </div>
+        </form>
+      </Drawer>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* View User Details Drawer                                           */}
+      {/* ------------------------------------------------------------------ */}
+      {viewingUser && (
+        <Drawer
+          isOpen={Boolean(viewingUser)}
+          onClose={() => setViewingUser(null)}
+          title={viewingUser.name}
+          description="Platform Operator Details"
+          maxWidth="max-w-[480px]"
+        >
+          <div className="space-y-4 pt-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-700 font-bold">
+                  {viewingUser.name.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-800">{viewUser.name}</h3>
-                  <p className="mt-1 text-sm text-slate-500">{viewUser.role}</p>
-                  <span
-                    className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[viewUser.status]}`}
-                  >
-                    {viewUser.status}
-                  </span>
+                  <h4 className="font-semibold text-slate-800 text-sm">{viewingUser.name}</h4>
+                  <p className="text-xs text-slate-500">{viewingUser.role}</p>
                 </div>
               </div>
 
-              {[
-                [Mail, "Email Address", viewUser.email],
-                [UserRound, "Phone Number", viewUser.phone || "Not provided"],
-                [ShieldCheck, "Platform Role", viewUser.role],
-                [CalendarDays, "Created Date", formatDate(viewUser.createdAt)],
-              ].map(([Icon, label, value]) => (
-                <div key={label} className="flex items-start gap-3">
-                  <div className="rounded-lg bg-slate-100 p-2.5 text-slate-600">
-                    <Icon size={18} />
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">{label}</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-800">
-                      {value}
-                    </p>
-                  </div>
+              <div className="pt-3 border-t border-slate-200/60 space-y-2 text-xs">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Mail size={14} className="text-slate-400" />
+                  <span>{viewingUser.email}</span>
                 </div>
-              ))}
-            </div>
-
-            <div className="border-t border-slate-200 p-5">
-              <button
-                onClick={() => setViewUser(null)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Close
-              </button>
+                <div className="flex items-center gap-2 text-slate-600">
+                  <UserRound size={14} className="text-slate-400" />
+                  <span>{viewingUser.phone || "No phone provided"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-600">
+                  <CalendarDays size={14} className="text-slate-400" />
+                  <span>Created: {viewingUser.createdAt}</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </Drawer>
       )}
     </div>
   );

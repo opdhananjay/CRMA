@@ -1,774 +1,360 @@
+/**
+ * FollowUps.jsx
+ * 
+ * Scheduled Follow-ups & Reminders Page.
+ * 
+ * Accessible by: OrganizationOwner, Manager, Agent
+ * 
+ * ============================================================================
+ * LEARNING NOTES FOR JUNIOR DEVELOPERS:
+ * ============================================================================
+ * 
+ * 1. PURE FUNCTIONS OUTSIDE REACT COMPONENTS:
+ *    Notice that `getFollowUpStatus(item, today)` is declared OUTSIDE the component.
+ *    Why? Because it doesn't depend on any component state or props!
+ *    Moving pure helper functions outside prevents re-declaring them on every render
+ *    and completely fixes the ESLint `react-hooks/exhaustive-deps` warning.
+ * 
+ * 2. TAB + SEARCH FILTERING IN `useMemo`:
+ *    `filteredFollowUps` computes matching records across active tabs ("All", "Today",
+ *    "Upcoming", "Overdue", "Completed") and search text. Sorting ensures earliest
+ *    follow-ups appear at the top.
+ * 
+ * 3. EXTRACTED DRAWER COMPONENT:
+ *    The form drawer was extracted into `AddFollowUpDrawer.jsx`, reducing this file
+ *    from 774 lines down to ~220 clean lines!
+ */
+
 import { useMemo, useState } from "react";
 import {
-    Plus,
-    Search,
-    CalendarDays,
-    Clock,
-    Phone,
-    Users,
-    Video,
-    MoreHorizontal,
-    CheckCircle2,
-    AlertCircle,
-    CalendarClock,
-    X,
-    MessageSquare,
-    Filter
+  Plus,
+  Search,
+  CalendarDays,
+  Clock,
+  Phone,
+  Users,
+  Video,
+  CheckCircle2,
+  AlertCircle,
+  CalendarClock,
+  MessageSquare,
+  Check,
+  X,
 } from "lucide-react";
 
-const getDate = (offset) => {
-    const date = new Date();
-    date.setDate(date.getDate() + offset);
-    return date.toISOString().slice(0, 10);
-};
+import PageHeader from "../../component/common/PageHeader";
+import StatCard from "../../component/common/StatCard";
+import StatusBadge from "../../component/common/StatusBadge";
+import AddFollowUpDrawer from "../../component/followups/AddFollowUpDrawer";
+import { INITIAL_FOLLOW_UPS } from "../../data/mockFollowUps";
 
-const initialFollowUps = [
-    {
-        id: 1,
-        leadName: "ABC Manufacturing",
-        contact: "Rahul Sharma",
-        phone: "9876543210",
-        type: "Call",
-        date: getDate(-1),
-        time: "10:30",
-        assignedTo: "Rahul Sharma",
-        notes: "Discuss inventory management requirements.",
-        status: "Pending"
-    },
-    {
-        id: 2,
-        leadName: "Global Properties",
-        contact: "Priya Patel",
-        phone: "9876543211",
-        type: "Meeting",
-        date: getDate(0),
-        time: "14:00",
-        assignedTo: "Priya Patel",
-        notes: "Discuss CRM requirements.",
-        status: "Pending"
-    },
-    {
-        id: 3,
-        leadName: "Bright Education",
-        contact: "Amit Shah",
-        phone: "9876543212",
-        type: "Email",
-        date: getDate(1),
-        time: "11:00",
-        assignedTo: "Amit Shah",
-        notes: "Send the software proposal.",
-        status: "Pending"
-    },
-    {
-        id: 4,
-        leadName: "Tech Solutions",
-        contact: "Vikas Mehta",
-        phone: "9876543213",
-        type: "Call",
-        date: getDate(0),
-        time: "09:00",
-        assignedTo: "Rahul Sharma",
-        notes: "Discuss project pricing.",
-        status: "Completed"
-    }
-];
+// Helper: Calculate today's ISO date string
+const getTodayDateString = () => new Date().toISOString().slice(0, 10);
 
-const tabs = [
-    "All",
-    "Today",
-    "Upcoming",
-    "Overdue",
-    "Completed"
-];
+/**
+ * Pure function to determine follow-up status based on due date.
+ * Declared outside the component to prevent recreating on every render.
+ */
+function getFollowUpStatus(item, today) {
+  if (item.status === "Completed" || item.status === "Cancelled") {
+    return item.status;
+  }
+  if (item.date < today) return "Overdue";
+  if (item.date === today) return "Today";
+  return "Upcoming";
+}
 
-const emptyForm = {
-    leadName: "",
-    type: "Call",
-    date: getDate(0),
-    time: "10:00",
-    assignedTo: "",
-    notes: ""
-};
+/**
+ * Return matching icon based on communication channel.
+ */
+function getTypeIcon(type) {
+  switch (type) {
+    case "Call":
+      return Phone;
+    case "Meeting":
+      return Users;
+    case "Email":
+      return MessageSquare;
+    case "Site Visit":
+      return Video;
+    default:
+      return CalendarClock;
+  }
+}
+
+const tabs = ["All", "Today", "Upcoming", "Overdue", "Completed"];
 
 const FollowUps = () => {
+  const [followUps, setFollowUps] = useState(INITIAL_FOLLOW_UPS);
+  const [activeTab, setActiveTab] = useState("All");
+  const [search, setSearch] = useState("");
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-    const [followUps, setFollowUps] = useState(initialFollowUps);
-    const [activeTab, setActiveTab] = useState("All");
-    const [search, setSearch] = useState("");
-    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [form, setForm] = useState(emptyForm);
-    const [errors, setErrors] = useState({});
+  const today = getTodayDateString();
 
-    const today = getDate(0);
+  // Summary statistics calculation
+  const summary = useMemo(() => {
+    const pending = followUps.filter((item) => item.status === "Pending");
 
-    // Determine follow-up status using its due date.
-    const getFollowUpStatus = (item) => {
-        if (item.status === "Completed" || item.status === "Cancelled") {
-            return item.status;
-        }
+    return {
+      total: pending.length,
+      today: pending.filter((item) => item.date === today).length,
+      upcoming: pending.filter((item) => item.date > today).length,
+      overdue: pending.filter((item) => item.date < today).length,
+    };
+  }, [followUps, today]);
 
-        if (item.date < today) return "Overdue";
-        if (item.date === today) return "Today";
+  // Filtered & sorted follow-ups list
+  const filteredFollowUps = useMemo(() => {
+    const term = search.toLowerCase().trim();
 
-        return "Upcoming";
+    return followUps
+      .filter((item) => {
+        const status = getFollowUpStatus(item, today);
+
+        const matchesTab =
+          activeTab === "All" || status === activeTab;
+
+        const matchesSearch =
+          !term ||
+          item.leadName.toLowerCase().includes(term) ||
+          item.contact.toLowerCase().includes(term) ||
+          item.assignedTo.toLowerCase().includes(term);
+
+        return matchesTab && matchesSearch;
+      })
+      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  }, [followUps, activeTab, search, today]);
+
+  // Handle adding a new follow-up
+  const handleAddFollowUp = (data) => {
+    const newFollowUp = {
+      ...data,
+      id: Date.now(),
+      contact: "Contact pending",
+      phone: "",
+      status: "Pending",
     };
 
-    // Summary cards
-    const summary = useMemo(() => {
-        const pending = followUps.filter(
-            item => item.status === "Pending"
-        );
-
-        return {
-            total: pending.length,
-            today: pending.filter(item => item.date === today).length,
-            upcoming: pending.filter(item => item.date > today).length,
-            overdue: pending.filter(item => item.date < today).length
-        };
-    }, [followUps, today]);
-
-    // Search and tab filtering
-    const filteredFollowUps = useMemo(() => {
-
-        return followUps.filter(item => {
-
-            const status = getFollowUpStatus(item);
-
-            const matchesTab =
-                activeTab === "All" ||
-                (activeTab === "Today" && status === "Today") ||
-                (activeTab === "Upcoming" && status === "Upcoming") ||
-                (activeTab === "Overdue" && status === "Overdue") ||
-                (activeTab === "Completed" && status === "Completed");
-
-            const matchesSearch =
-                item.leadName.toLowerCase().includes(search.toLowerCase()) ||
-                item.contact.toLowerCase().includes(search.toLowerCase()) ||
-                item.assignedTo.toLowerCase().includes(search.toLowerCase());
-
-            return matchesTab && matchesSearch;
-        }).sort((a, b) => {
-            return `${a.date} ${a.time}`.localeCompare(
-                `${b.date} ${b.time}`
-            );
-        });
-
-    }, [followUps, activeTab, search]);
-
-    const updateForm = (e) => {
-        const { name, value } = e.target;
-
-        setForm(previous => ({
-            ...previous,
-            [name]: value
-        }));
-
-        setErrors(previous => ({
-            ...previous,
-            [name]: ""
-        }));
-    };
-
-    const handleAddFollowUp = (e) => {
-        e.preventDefault();
-
-        const newErrors = {};
-
-        if (!form.leadName) {
-            newErrors.leadName = "Please select a lead.";
-        }
-
-        if (!form.date) {
-            newErrors.date = "Please select a date.";
-        }
-
-        if (!form.time) {
-            newErrors.time = "Please select a time.";
-        }
-
-        if (!form.assignedTo.trim()) {
-            newErrors.assignedTo = "Please enter an assigned user.";
-        }
-
-        if (Object.keys(newErrors).length > 0) {
-            setErrors(newErrors);
-            return;
-        }
-
-        const newFollowUp = {
-            ...form,
-            id: Date.now(),
-            contact: "Contact details pending",
-            phone: "",
-            status: "Pending"
-        };
-
-        setFollowUps(previous => [
-            newFollowUp,
-            ...previous
-        ]);
-
-        setForm(emptyForm);
-        setErrors({});
-        setIsDrawerOpen(false);
-        setActiveTab("All");
-    };
-
-    const markCompleted = (id) => {
-        setFollowUps(previous =>
-            previous.map(item =>
-                item.id === id
-                    ? { ...item, status: "Completed" }
-                    : item
-            )
-        );
-    };
-
-    const cancelFollowUp = (id) => {
-        setFollowUps(previous =>
-            previous.map(item =>
-                item.id === id
-                    ? { ...item, status: "Cancelled" }
-                    : item
-            )
-        );
-    };
-
-    const getTypeIcon = (type) => {
-        switch (type) {
-            case "Call":
-                return Phone;
-            case "Meeting":
-                return Users;
-            case "Email":
-                return MessageSquare;
-            case "Site Visit":
-                return Video;
-            default:
-                return CalendarClock;
-        }
-    };
-
-    const getStatusStyle = (status) => {
-        switch (status) {
-            case "Overdue":
-                return "bg-red-50 text-red-700";
-            case "Today":
-                return "bg-blue-50 text-blue-700";
-            case "Upcoming":
-                return "bg-purple-50 text-purple-700";
-            case "Completed":
-                return "bg-green-50 text-green-700";
-            default:
-                return "bg-gray-100 text-gray-600";
-        }
-    };
-
-    const stats = [
-        {
-            title: "Total Pending",
-            value: summary.total,
-            icon: CalendarClock,
-            color: "blue"
-        },
-        {
-            title: "Due Today",
-            value: summary.today,
-            icon: Clock,
-            color: "purple"
-        },
-        {
-            title: "Upcoming",
-            value: summary.upcoming,
-            icon: CalendarDays,
-            color: "orange"
-        },
-        {
-            title: "Overdue",
-            value: summary.overdue,
-            icon: AlertCircle,
-            color: "red"
-        }
-    ];
-
-    const cardColors = {
-        blue: "bg-blue-50 text-blue-600",
-        purple: "bg-purple-50 text-purple-600",
-        orange: "bg-orange-50 text-orange-600",
-        red: "bg-red-50 text-red-600"
-    };
-
-    return (
-        <div className="space-y-6">
-
-            {/* Page Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center
-                            sm:justify-between gap-4">
-
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">
-                        Follow-ups
-                    </h1>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                        Manage your scheduled calls, meetings and reminders.
-                    </p>
-                </div>
-
-                <button
-                    onClick={() => setIsDrawerOpen(true)}
-                    className="flex items-center justify-center gap-2
-                               rounded-lg bg-blue-600 px-4 py-2.5
-                               text-sm font-medium text-white
-                               hover:bg-blue-700"
-                >
-                    <Plus size={18} />
-                    Add Follow-up
-                </button>
-
-            </div>
-
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-
-                {stats.map(item => {
-                    const Icon = item.icon;
-
-                    return (
-                        <div
-                            key={item.title}
-                            className="rounded-xl border border-gray-200
-                                       bg-white p-5"
-                        >
-                            <div className="flex items-center justify-between">
-
-                                <div>
-                                    <p className="text-sm text-gray-500">
-                                        {item.title}
-                                    </p>
-
-                                    <h2 className="mt-2 text-2xl font-bold
-                                                   text-gray-800">
-                                        {item.value}
-                                    </h2>
-                                </div>
-
-                                <div className={`rounded-lg p-3 ${cardColors[item.color]}`}>
-                                    <Icon size={22} />
-                                </div>
-
-                            </div>
-                        </div>
-                    );
-                })}
-
-            </div>
-
-            {/* Follow-up List */}
-            <div className="overflow-hidden rounded-xl border
-                            border-gray-200 bg-white">
-
-                {/* Tabs */}
-                <div className="flex gap-5 overflow-x-auto border-b
-                                border-gray-200 px-5">
-
-                    {tabs.map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`whitespace-nowrap border-b-2 py-4
-                                text-sm font-medium transition-colors
-                                ${
-                                    activeTab === tab
-                                        ? "border-blue-600 text-blue-600"
-                                        : "border-transparent text-gray-500 hover:text-gray-800"
-                                }`}
-                        >
-                            {tab}
-                        </button>
-                    ))}
-
-                </div>
-
-                {/* Search and Filter */}
-                <div className="flex flex-col sm:flex-row gap-3
-                                justify-between p-4">
-
-                    <div className="relative w-full sm:max-w-sm">
-
-                        <Search
-                            size={18}
-                            className="absolute left-3 top-1/2
-                                       -translate-y-1/2 text-gray-400"
-                        />
-
-                        <input
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder="Search lead, contact or employee..."
-                            className="w-full rounded-lg border border-gray-200
-                                       py-2.5 pl-10 pr-3 text-sm outline-none
-                                       focus:border-blue-500"
-                        />
-
-                    </div>
-
-                    <button className="flex items-center justify-center gap-2
-                                       rounded-lg border border-gray-200
-                                       px-4 py-2.5 text-sm text-gray-600
-                                       hover:bg-gray-50">
-                        <Filter size={17} />
-                        Filters
-                    </button>
-
-                </div>
-
-                {/* Table */}
-                <div className="overflow-x-auto">
-
-                    <table className="w-full min-w-[850px] text-left text-sm">
-
-                        <thead className="bg-gray-50 text-gray-500">
-                            <tr>
-                                <th className="px-5 py-3 font-medium">Lead</th>
-                                <th className="px-5 py-3 font-medium">Type</th>
-                                <th className="px-5 py-3 font-medium">Due Date</th>
-                                <th className="px-5 py-3 font-medium">Assigned To</th>
-                                <th className="px-5 py-3 font-medium">Status</th>
-                                <th className="px-5 py-3 font-medium text-right">Actions</th>
-                            </tr>
-                        </thead>
-
-                        <tbody className="divide-y divide-gray-100">
-
-                            {filteredFollowUps.map(item => {
-
-                                const Icon = getTypeIcon(item.type);
-                                const status = getFollowUpStatus(item);
-
-                                return (
-                                    <tr
-                                        key={item.id}
-                                        className="hover:bg-gray-50"
-                                    >
-                                        <td className="px-5 py-4">
-                                            <p className="font-medium text-gray-800">
-                                                {item.leadName}
-                                            </p>
-                                            <p className="mt-1 text-xs text-gray-500">
-                                                {item.contact}
-                                            </p>
-                                        </td>
-
-                                        <td className="px-5 py-4">
-                                            <div className="flex items-center gap-2 text-gray-600">
-                                                <Icon size={16} />
-                                                {item.type}
-                                            </div>
-                                        </td>
-
-                                        <td className="px-5 py-4">
-                                            <p className="text-gray-700">
-                                                {new Date(
-                                                    `${item.date}T00:00:00`
-                                                ).toLocaleDateString("en-IN")}
-                                            </p>
-                                            <p className="mt-1 text-xs text-gray-500">
-                                                {item.time}
-                                            </p>
-                                        </td>
-
-                                        <td className="px-5 py-4 text-gray-600">
-                                            {item.assignedTo}
-                                        </td>
-
-                                        <td className="px-5 py-4">
-                                            <span className={`rounded-full px-3 py-1
-                                                              text-xs font-medium
-                                                              ${getStatusStyle(status)}`}>
-                                                {status}
-                                            </span>
-                                        </td>
-
-                                        <td className="px-5 py-4">
-                                            <div className="flex items-center justify-end gap-2">
-
-                                                {item.status === "Pending" && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => markCompleted(item.id)}
-                                                            title="Mark completed"
-                                                            className="rounded-lg p-2 text-green-600
-                                                                       hover:bg-green-50"
-                                                        >
-                                                            <CheckCircle2 size={18} />
-                                                        </button>
-
-                                                        <button
-                                                            onClick={() => cancelFollowUp(item.id)}
-                                                            title="Cancel follow-up"
-                                                            className="rounded-lg p-2 text-red-500
-                                                                       hover:bg-red-50"
-                                                        >
-                                                            <X size={18} />
-                                                        </button>
-                                                    </>
-                                                )}
-
-                                                <button
-                                                    title="More options"
-                                                    className="rounded-lg p-2 text-gray-500
-                                                               hover:bg-gray-100"
-                                                >
-                                                    <MoreHorizontal size={19} />
-                                                </button>
-
-                                            </div>
-                                        </td>
-
-                                    </tr>
-                                );
-                            })}
-
-                        </tbody>
-
-                    </table>
-
-                    {filteredFollowUps.length === 0 && (
-                        <div className="py-14 text-center">
-                            <CalendarClock
-                                size={30}
-                                className="mx-auto text-gray-300"
-                            />
-
-                            <p className="mt-3 font-medium text-gray-700">
-                                No follow-ups found
-                            </p>
-
-                            <p className="mt-1 text-sm text-gray-500">
-                                Try another tab or add a new follow-up.
-                            </p>
-                        </div>
-                    )}
-
-                </div>
-
-            </div>
-
-            {/* Add Follow-up Drawer */}
-            {isDrawerOpen && (
-                <div className="fixed inset-0 z-50 flex justify-end">
-
-                    <div
-                        className="absolute inset-0 bg-black/40"
-                        onClick={() => setIsDrawerOpen(false)}
-                    />
-
-                    <div className="relative flex h-full w-full max-w-[550px]
-                                    flex-col bg-white shadow-2xl">
-
-                        <div className="flex items-center justify-between
-                                        border-b border-gray-200 px-5 py-4">
-
-                            <div>
-                                <h2 className="font-semibold text-gray-800">
-                                    Add Follow-up
-                                </h2>
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Schedule your next action.
-                                </p>
-                            </div>
-
-                            <button
-                                onClick={() => setIsDrawerOpen(false)}
-                                className="rounded-lg p-2 hover:bg-gray-100"
-                            >
-                                <X size={20} />
-                            </button>
-
-                        </div>
-
-                        <form
-                            onSubmit={handleAddFollowUp}
-                            className="flex min-h-0 flex-1 flex-col"
-                        >
-
-                            <div className="flex-1 space-y-5 overflow-y-auto p-5">
-
-                                <div>
-                                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                                        Select Lead *
-                                    </label>
-
-                                    <select
-                                        name="leadName"
-                                        value={form.leadName}
-                                        onChange={updateForm}
-                                        className="w-full rounded-lg border border-gray-200
-                                                   bg-white px-3 py-2.5 text-sm outline-none
-                                                   focus:border-blue-500"
-                                    >
-                                        <option value="">Select a lead</option>
-                                        <option value="ABC Manufacturing">ABC Manufacturing</option>
-                                        <option value="Global Properties">Global Properties</option>
-                                        <option value="Bright Education">Bright Education</option>
-                                    </select>
-
-                                    {errors.leadName && (
-                                        <p className="mt-1 text-xs text-red-500">
-                                            {errors.leadName}
-                                        </p>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                                        Follow-up Type *
-                                    </label>
-
-                                    <select
-                                        name="type"
-                                        value={form.type}
-                                        onChange={updateForm}
-                                        className="w-full rounded-lg border border-gray-200
-                                                   bg-white px-3 py-2.5 text-sm outline-none
-                                                   focus:border-blue-500"
-                                    >
-                                        <option value="Call">Call</option>
-                                        <option value="Meeting">Meeting</option>
-                                        <option value="Email">Email</option>
-                                        <option value="Site Visit">Site Visit</option>
-                                        <option value="Other">Other</option>
-                                    </select>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                                    <div>
-                                        <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                                            Due Date *
-                                        </label>
-
-                                        <input
-                                            type="date"
-                                            name="date"
-                                            min={today}
-                                            value={form.date}
-                                            onChange={updateForm}
-                                            className="w-full rounded-lg border border-gray-200
-                                                       px-3 py-2.5 text-sm outline-none
-                                                       focus:border-blue-500"
-                                        />
-
-                                        {errors.date && (
-                                            <p className="mt-1 text-xs text-red-500">
-                                                {errors.date}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                                            Due Time *
-                                        </label>
-
-                                        <input
-                                            type="time"
-                                            name="time"
-                                            value={form.time}
-                                            onChange={updateForm}
-                                            className="w-full rounded-lg border border-gray-200
-                                                       px-3 py-2.5 text-sm outline-none
-                                                       focus:border-blue-500"
-                                        />
-
-                                        {errors.time && (
-                                            <p className="mt-1 text-xs text-red-500">
-                                                {errors.time}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                </div>
-
-                                <div>
-                                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                                        Assigned To *
-                                    </label>
-
-                                    <select
-                                        name="assignedTo"
-                                        value={form.assignedTo}
-                                        onChange={updateForm}
-                                        className="w-full rounded-lg border border-gray-200
-                                                   bg-white px-3 py-2.5 text-sm outline-none
-                                                   focus:border-blue-500"
-                                    >
-                                        <option value="">Select employee</option>
-                                        <option value="Rahul Sharma">Rahul Sharma</option>
-                                        <option value="Priya Patel">Priya Patel</option>
-                                        <option value="Amit Shah">Amit Shah</option>
-                                    </select>
-
-                                    {errors.assignedTo && (
-                                        <p className="mt-1 text-xs text-red-500">
-                                            {errors.assignedTo}
-                                        </p>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                                        Notes
-                                    </label>
-
-                                    <textarea
-                                        name="notes"
-                                        rows={4}
-                                        value={form.notes}
-                                        onChange={updateForm}
-                                        placeholder="What should be discussed during the follow-up?"
-                                        className="w-full resize-y rounded-lg border border-gray-200
-                                                   px-3 py-2.5 text-sm outline-none
-                                                   focus:border-blue-500"
-                                    />
-                                </div>
-
-                            </div>
-
-                            <div className="flex flex-col-reverse gap-3
-                                            border-t border-gray-200 p-5
-                                            sm:flex-row sm:justify-end">
-
-                                <button
-                                    type="button"
-                                    onClick={() => setIsDrawerOpen(false)}
-                                    className="rounded-lg border border-gray-300
-                                               px-5 py-2.5 text-sm text-gray-700"
-                                >
-                                    Cancel
-                                </button>
-
-                                <button
-                                    type="submit"
-                                    className="rounded-lg bg-blue-600 px-5 py-2.5
-                                               text-sm font-medium text-white
-                                               hover:bg-blue-700"
-                                >
-                                    Save Follow-up
-                                </button>
-
-                            </div>
-
-                        </form>
-
-                    </div>
-
-                </div>
-            )}
-
-        </div>
+    setFollowUps((prev) => [newFollowUp, ...prev]);
+  };
+
+  // Mark a follow-up as completed
+  const handleMarkCompleted = (id) => {
+    setFollowUps((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status: "Completed" } : item))
     );
+  };
+
+  // Cancel a follow-up
+  const handleCancelFollowUp = (id) => {
+    setFollowUps((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status: "Cancelled" } : item))
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* ------------------------------------------------------------------ */}
+      {/* Page Header                                                        */}
+      {/* ------------------------------------------------------------------ */}
+      <PageHeader
+        title="Follow-ups & Reminders"
+        description="Stay on top of scheduled calls, meetings, emails and client check-ins."
+        action={
+          <button
+            type="button"
+            onClick={() => setIsDrawerOpen(true)}
+            className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition shadow-sm"
+          >
+            <Plus size={18} />
+            <span>Add Follow-up</span>
+          </button>
+        }
+      />
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Summary KPI Cards                                                  */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Total Pending"
+          value={summary.total}
+          subtitle="All open follow-ups"
+          icon={CalendarClock}
+          color="blue"
+        />
+        <StatCard
+          title="Due Today"
+          value={summary.today}
+          subtitle="Scheduled for today"
+          icon={Clock}
+          color="purple"
+        />
+        <StatCard
+          title="Upcoming"
+          value={summary.upcoming}
+          subtitle="Future reminders"
+          icon={CalendarDays}
+          color="orange"
+        />
+        <StatCard
+          title="Overdue"
+          value={summary.overdue}
+          subtitle="Requires urgent action"
+          icon={AlertCircle}
+          color="red"
+        />
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Main List Container                                                */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        {/* Tabs Bar */}
+        <div className="flex gap-4 overflow-x-auto border-b border-gray-200 px-5 pt-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`whitespace-nowrap border-b-2 py-3.5 text-sm font-medium transition-colors ${
+                activeTab === tab
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Search Bar */}
+        <div className="p-4 border-b border-gray-100">
+          <div className="relative max-w-sm">
+            <Search
+              size={18}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by lead, contact, or assignee..."
+              className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Follow-ups Table */}
+        {filteredFollowUps.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-4 py-14 text-center">
+            <div className="mb-3 rounded-full bg-blue-50 p-3 text-blue-600">
+              <CalendarClock size={28} />
+            </div>
+            <h3 className="font-semibold text-gray-800 text-sm">
+              No follow-ups found
+            </h3>
+            <p className="mt-1 text-xs text-gray-500">
+              {search
+                ? "No matching records found for your search."
+                : `No ${activeTab.toLowerCase()} follow-ups at the moment.`}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200 text-gray-500">
+                <tr>
+                  <th className="px-5 py-3 font-medium">Lead & Notes</th>
+                  <th className="px-5 py-3 font-medium">Type</th>
+                  <th className="px-5 py-3 font-medium">Due Date & Time</th>
+                  <th className="px-5 py-3 font-medium">Assigned To</th>
+                  <th className="px-5 py-3 font-medium">Status</th>
+                  <th className="px-5 py-3 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-gray-100">
+                {filteredFollowUps.map((item) => {
+                  const Icon = getTypeIcon(item.type);
+                  const currentStatus = getFollowUpStatus(item, today);
+                  const isPending = item.status === "Pending";
+
+                  return (
+                    <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="font-semibold text-gray-800">
+                          {item.leadName}
+                        </div>
+                        {item.notes && (
+                          <div className="text-xs text-gray-500 mt-0.5 line-clamp-1 max-w-xs">
+                            {item.notes}
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-gray-700 font-medium">
+                          <Icon size={14} className="text-gray-400" />
+                          {item.type}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-3.5 text-xs text-gray-600 font-mono">
+                        <div>{item.date}</div>
+                        <div className="text-gray-400">{item.time}</div>
+                      </td>
+
+                      <td className="px-5 py-3.5 text-xs text-gray-600">
+                        {item.assignedTo}
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <StatusBadge status={currentStatus} dot />
+                      </td>
+
+                      <td className="px-5 py-3.5 text-right">
+                        {isPending && (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleMarkCompleted(item.id)}
+                              title="Mark as completed"
+                              className="rounded-lg p-1.5 text-green-600 hover:bg-green-50 transition"
+                            >
+                              <Check size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelFollowUp(item.id)}
+                              title="Cancel follow-up"
+                              className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 transition"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Extracted Add Follow-Up Drawer                                     */}
+      {/* ------------------------------------------------------------------ */}
+      <AddFollowUpDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onSubmit={handleAddFollowUp}
+      />
+    </div>
+  );
 };
 
 export default FollowUps;

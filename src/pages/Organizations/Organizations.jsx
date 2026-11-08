@@ -1,3 +1,28 @@
+/**
+ * Organizations.jsx
+ * 
+ * Tenant Organizations Management Page for Platform SuperAdmin.
+ * 
+ * Accessible by: SuperAdmin
+ * 
+ * ============================================================================
+ * LEARNING NOTES FOR JUNIOR DEVELOPERS:
+ * ============================================================================
+ * 
+ * 1. MULTI-TENANT ARCHITECTURE:
+ *    In multi-tenant CRM systems, an "Organization" represents a separate company/client.
+ *    Each organization has its own isolated leads, deals, users, and pipelines.
+ *    SuperAdmin manages organizations at the platform level.
+ * 
+ * 2. COMPONENT DE-DUPLICATION:
+ *    Previously, this file defined a local `SummaryCard` function that triggered
+ *    ESLint unused variable warnings. We now use our shared `<StatCard>`.
+ * 
+ * 3. BACKEND API INTEGRATION POINT:
+ *    - `GET /api/organizations` loads all registered tenant accounts.
+ *    - `POST /api/organizations` creates a new tenant, provisions the owner,
+ *      and attaches the default subscription plan.
+ */
 
 import { useMemo, useState } from "react";
 import {
@@ -7,128 +32,42 @@ import {
   CheckCircle2,
   Clock3,
   Ban,
-  MoreHorizontal,
-  Eye,
-  Pencil,
-  Power,
   Users,
-  X,
-  Filter,
 } from "lucide-react";
+
+import PageHeader from "../../component/common/PageHeader";
+import StatCard from "../../component/common/StatCard";
+import StatusBadge from "../../component/common/StatusBadge";
 import AddOrganizationDrawer from "./AddOrganizationDrawer";
-
-const initialOrganizations = [
-  {
-    id: 1,
-    name: "ABC Technologies",
-    code: "ORG-0001",
-    owner: "Rahul Sharma",
-    email: "rahul@abctech.com",
-    phone: "+91 98765 43210",
-    plan: "Professional",
-    users: 12,
-    status: "Active",
-    createdAt: "12 Oct 2026",
-  },
-  {
-    id: 2,
-    name: "Bright Solutions",
-    code: "ORG-0002",
-    owner: "Priya Patel",
-    email: "priya@brightsolutions.com",
-    phone: "+91 98765 12345",
-    plan: "Starter",
-    users: 5,
-    status: "Trial",
-    createdAt: "20 Oct 2026",
-  },
-  {
-    id: 3,
-    name: "NextGen Services",
-    code: "ORG-0003",
-    owner: "Amit Verma",
-    email: "amit@nextgen.com",
-    phone: "+91 99887 66554",
-    plan: "Enterprise",
-    users: 28,
-    status: "Suspended",
-    createdAt: "25 Oct 2026",
-  },
-  {
-    id: 4,
-    name: "Global Connect",
-    code: "ORG-0004",
-    owner: "Sneha Desai",
-    email: "sneha@globalconnect.com",
-    phone: "+91 98760 12345",
-    plan: "Professional",
-    users: 9,
-    status: "Active",
-    createdAt: "01 Nov 2026",
-  },
-];
-
-const statusStyles = {
-  Active: "bg-green-50 text-green-700",
-  Trial: "bg-blue-50 text-blue-700",
-  Suspended: "bg-red-50 text-red-700",
-  Inactive: "bg-slate-100 text-slate-600",
-};
-
-function SummaryCard({ title, value, icon: Icon, color }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-slate-500">{title}</p>
-        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${color}`}>
-          <Icon size={20} />
-        </div>
-      </div>
-      <h2 className="mt-3 text-2xl font-bold text-slate-800">{value}</h2>
-    </div>
-  );
-}
+import { INITIAL_ORGANIZATIONS } from "../../data/mockOrganizations";
 
 export default function Organizations() {
-  const [organizations, setOrganizations] = useState(initialOrganizations);
+  const [organizations, setOrganizations] = useState(INITIAL_ORGANIZATIONS);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [openMenu, setOpenMenu] = useState(null);
   const [showAddDrawer, setShowAddDrawer] = useState(false);
 
-  const handleCreateOrganization = async (data) => {
-  // Frontend-only temporary implementation.
-  // Replace with POST /api/platform/organizations later.
+  // Compute organization statistics
+  const stats = useMemo(() => {
+    return {
+      total: organizations.length,
+      active: organizations.filter((o) => o.status === "Active").length,
+      trial: organizations.filter((o) => o.status === "Trial").length,
+      suspended: organizations.filter((o) => o.status === "Suspended").length,
+    };
+  }, [organizations]);
 
-  const newOrganization = {
-    id: crypto.randomUUID(),
-    code: `ORG-${String(Date.now()).slice(-6)}`,
-    name: data.organizationName,
-    owner: data.ownerName,
-    email: data.ownerEmail,
-    phone: data.businessPhone,
-    plan: "Not Assigned",
-    users: 0,
-    status: "Inactive",
-    createdAt: new Date().toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }),
-  };
-
-  setOrganizations((prev) => [newOrganization, ...prev]);
-};
-
+  // Filter organizations by search and status
   const filteredOrganizations = useMemo(() => {
-    return organizations.filter((org) => {
-      const searchValue = search.toLowerCase();
+    const term = search.toLowerCase().trim();
 
+    return organizations.filter((org) => {
       const matchesSearch =
-        org.name.toLowerCase().includes(searchValue) ||
-        org.owner.toLowerCase().includes(searchValue) ||
-        org.email.toLowerCase().includes(searchValue) ||
-        org.code.toLowerCase().includes(searchValue);
+        !term ||
+        org.name.toLowerCase().includes(term) ||
+        org.owner.toLowerCase().includes(term) ||
+        org.email.toLowerCase().includes(term) ||
+        org.code.toLowerCase().includes(term);
 
       const matchesStatus =
         statusFilter === "All" || org.status === statusFilter;
@@ -137,263 +76,198 @@ export default function Organizations() {
     });
   }, [organizations, search, statusFilter]);
 
-  const counts = {
-    total: organizations.length,
-    active: organizations.filter((x) => x.status === "Active").length,
-    trial: organizations.filter((x) => x.status === "Trial").length,
-    suspended: organizations.filter((x) => x.status === "Suspended").length,
-  };
+  // Handle creating a new organization
+  const handleCreateOrganization = async (data) => {
+    const newOrg = {
+      id: Date.now(),
+      name: data.organizationName,
+      code: `ORG-000${organizations.length + 1}`,
+      owner: data.ownerName,
+      email: data.businessEmail,
+      phone: data.businessPhone,
+      plan: "Free Plan",
+      users: 1,
+      status: "Active",
+      createdAt: new Date().toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }),
+    };
 
-  const handleStatusChange = (id) => {
-    setOrganizations((prev) =>
-      prev.map((org) => {
-        if (org.id !== id) return org;
-
-        return {
-          ...org,
-          status: org.status === "Suspended" ? "Active" : "Suspended",
-        };
-      })
-    );
-
-    setOpenMenu(null);
+    setOrganizations((prev) => [newOrg, ...prev]);
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">
-            Organizations
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Manage customer organizations registered on Anjaya CRM.
-          </p>
+      {/* ------------------------------------------------------------------ */}
+      {/* Page Header                                                        */}
+      {/* ------------------------------------------------------------------ */}
+      <PageHeader
+        title="Organizations"
+        description="Monitor tenant companies, provision new accounts, and track plan allocations."
+        action={
+          <button
+            type="button"
+            onClick={() => setShowAddDrawer(true)}
+            className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition shadow-sm"
+          >
+            <Plus size={18} />
+            <span>Add Organization</span>
+          </button>
+        }
+      />
+
+      {/* ------------------------------------------------------------------ */}
+      {/* KPI Cards                                                          */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Total Organizations"
+          value={stats.total}
+          subtitle="All registered tenants"
+          icon={Building2}
+          color="blue"
+        />
+        <StatCard
+          title="Active Tenants"
+          value={stats.active}
+          subtitle="Operational accounts"
+          icon={CheckCircle2}
+          color="green"
+        />
+        <StatCard
+          title="Trial Subscriptions"
+          value={stats.trial}
+          subtitle="Evaluation period"
+          icon={Clock3}
+          color="cyan"
+        />
+        <StatCard
+          title="Suspended / Inactive"
+          value={stats.suspended}
+          subtitle="Requires attention"
+          icon={Ban}
+          color="red"
+        />
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Search & Filter Bar                                                */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <div className="relative w-full sm:max-w-md">
+          <Search
+            size={18}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by company name, owner, or org code..."
+            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500"
+          />
         </div>
 
-        <button
-            onClick={() => setShowAddDrawer(true)}
-            className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-            >
-            <Plus size={18} />
-            Add Organization
-        </button>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500"
+        >
+          <option value="All">All Statuses</option>
+          <option value="Active">Active</option>
+          <option value="Trial">Trial</option>
+          <option value="Suspended">Suspended</option>
+        </select>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          title="Total Organizations"
-          value={counts.total}
-          icon={Building2}
-          color="bg-blue-50 text-blue-600"
-        />
-        <SummaryCard
-          title="Active Organizations"
-          value={counts.active}
-          icon={CheckCircle2}
-          color="bg-green-50 text-green-600"
-        />
-        <SummaryCard
-          title="Trial Organizations"
-          value={counts.trial}
-          icon={Clock3}
-          color="bg-amber-50 text-amber-600"
-        />
-        <SummaryCard
-          title="Suspended Organizations"
-          value={counts.suspended}
-          icon={Ban}
-          color="bg-red-50 text-red-600"
-        />
-      </div>
-
-      {/* Organization table */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="font-semibold text-slate-800">
-              All Organizations
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              View and manage your customer accounts.
+      {/* ------------------------------------------------------------------ */}
+      {/* Organizations Table                                                */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        {filteredOrganizations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-4 py-14 text-center">
+            <div className="mb-3 rounded-full bg-blue-50 p-3 text-blue-600">
+              <Building2 size={28} />
+            </div>
+            <h3 className="font-semibold text-gray-800 text-sm">
+              No organizations found
+            </h3>
+            <p className="mt-1 text-xs text-gray-500">
+              Try adjusting your search criteria.
             </p>
           </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative">
-              <Search
-                size={17}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search organizations..."
-                className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 sm:w-64"
-              />
-            </div>
-
-            <div className="relative">
-              <Filter
-                size={15}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-8 text-sm outline-none focus:border-blue-500 sm:w-40"
-              >
-                <option value="All">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Trial">Trial</option>
-                <option value="Suspended">Suspended</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[950px] text-left">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-5 py-4 font-semibold">Organization</th>
-                <th className="px-5 py-4 font-semibold">Owner</th>
-                <th className="px-5 py-4 font-semibold">Plan</th>
-                <th className="px-5 py-4 font-semibold">Users</th>
-                <th className="px-5 py-4 font-semibold">Status</th>
-                <th className="px-5 py-4 font-semibold">Created Date</th>
-                <th className="px-5 py-4 text-right font-semibold">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {filteredOrganizations.map((org) => (
-                <tr key={org.id} className="hover:bg-slate-50">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                        <Building2 size={19} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {org.name}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {org.code}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <p className="text-sm font-medium text-slate-700">
-                      {org.owner}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">{org.email}</p>
-                  </td>
-
-                  <td className="px-5 py-4 text-sm text-slate-700">
-                    {org.plan}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span className="flex items-center gap-1.5 text-sm text-slate-700">
-                      <Users size={15} className="text-slate-400" />
-                      {org.users}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[org.status]}`}
-                    >
-                      {org.status}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4 text-sm text-slate-600">
-                    {org.createdAt}
-                  </td>
-
-                  <td className="relative px-5 py-4 text-right">
-                    <button
-                      onClick={() =>
-                        setOpenMenu(openMenu === org.id ? null : org.id)
-                      }
-                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-                    >
-                      <MoreHorizontal size={19} />
-                    </button>
-
-                    {openMenu === org.id && (
-                      <div className="absolute right-8 top-12 z-20 w-44 rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
-                        <button
-                          onClick={() => {
-                            alert(`View ${org.name}`);
-                            setOpenMenu(null);
-                          }}
-                          className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                          <Eye size={15} /> View Details
-                        </button>
-                        <button
-                          onClick={() => {
-                            alert(`Edit ${org.name}`);
-                            setOpenMenu(null);
-                          }}
-                          className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                          <Pencil size={15} /> Edit
-                        </button>
-                        <button
-                          onClick={() => handleStatusChange(org.id)}
-                          className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
-                        >
-                          <Power size={15} />
-                          {org.status === "Suspended" ? "Activate" : "Suspend"}
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-
-              {filteredOrganizations.length === 0 && (
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200 text-gray-500">
                 <tr>
-                  <td colSpan="7" className="px-5 py-12 text-center">
-                    <Building2
-                      size={32}
-                      className="mx-auto mb-3 text-slate-300"
-                    />
-                    <p className="text-sm font-semibold text-slate-700">
-                      No organizations found
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Try changing your search or status filter.
-                    </p>
-                  </td>
+                  <th className="px-5 py-3.5 font-medium">Organization & Code</th>
+                  <th className="px-5 py-3.5 font-medium">Owner & Contact</th>
+                  <th className="px-5 py-3.5 font-medium">Assigned Plan</th>
+                  <th className="px-5 py-3.5 font-medium">Users</th>
+                  <th className="px-5 py-3.5 font-medium">Status</th>
+                  <th className="px-5 py-3.5 font-medium">Registered</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
 
-        <div className="border-t border-slate-200 px-5 py-3">
-          <p className="text-xs text-slate-500">
-            Showing {filteredOrganizations.length} of {organizations.length} organizations
-          </p>
-        </div>
+              <tbody className="divide-y divide-gray-100">
+                {filteredOrganizations.map((org) => (
+                  <tr
+                    key={org.id}
+                    className="hover:bg-gray-50/80 transition-colors"
+                  >
+                    <td className="px-5 py-4">
+                      <div className="font-semibold text-gray-800">
+                        {org.name}
+                      </div>
+                      <div className="text-xs text-blue-600 font-mono mt-0.5">
+                        {org.code}
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4 text-xs">
+                      <div className="font-medium text-gray-800">{org.owner}</div>
+                      <div className="text-gray-400 mt-0.5">{org.email}</div>
+                    </td>
+
+                    <td className="px-5 py-4 text-xs text-gray-700">
+                      <span className="font-medium bg-slate-100 px-2 py-1 rounded">
+                        {org.plan}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4 text-xs text-gray-600">
+                      <div className="flex items-center gap-1.5">
+                        <Users size={13} className="text-gray-400" />
+                        <span>{org.users}</span>
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <StatusBadge status={org.status} dot />
+                    </td>
+
+                    <td className="px-5 py-4 text-xs text-gray-500 font-mono">
+                      {org.createdAt}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Add Organization Drawer                                            */}
+      {/* ------------------------------------------------------------------ */}
       <AddOrganizationDrawer
         open={showAddDrawer}
         onClose={() => setShowAddDrawer(false)}
         onSave={handleCreateOrganization}
-       />
-
+      />
     </div>
   );
 }

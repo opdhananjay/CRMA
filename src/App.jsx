@@ -1,16 +1,15 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-import AppRoutes from './routes/AppRoutes'
+/**
+ * App.jsx
+ * 
+ * Root Component of Anjaya CRM.
+ * 
+ * Renders the top-level application routing tree.
+ */
+
+import AppRoutes from "./routes/AppRoutes";
 
 function App() {
-  
-  return (
-    <>
-      <AppRoutes />
-    </>
-  )
+  return <AppRoutes />;
 }
 
-export default App
+export default App;
